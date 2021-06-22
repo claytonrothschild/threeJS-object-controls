@@ -15,7 +15,7 @@ description: module for ThreeJS that allows you to rotate an Object(mesh) indepe
  * @param domElement - reference to the renderer's dom element.
  * @param objectToMove - reference the object to control.
  */
-function ObjectControls(camera, domElement, objectToMove) {
+function ObjectControls(camera, domElement, objectToMove,scene,textures) {
 
   /**
   * setObjectToMove
@@ -128,11 +128,11 @@ function ObjectControls(camera, domElement, objectToMove) {
   let
     flag,
     mesh = objectToMove,
-    maxDistance = 15,
-    minDistance = 6,
+    maxDistance = 300,
+    minDistance = 300,
     zoomSpeed = 0.5,
     rotationSpeed = 0.05,
-    rotationSpeedTouchDevices = 0.05,
+    rotationSpeedTouchDevices = 0.00005,
     isDragging = false,
     verticalRotationEnabled = false,
     horizontalRotationEnabled = true,
@@ -140,6 +140,7 @@ function ObjectControls(camera, domElement, objectToMove) {
     mouseFlags = { MOUSEDOWN: 0, MOUSEMOVE: 1 },
     previousMousePosition = { x: 0, y: 0 },
     prevZoomDiff = { X: null, Y: null },
+    sides = 32,
     /**
     * CurrentTouches
     * length 0 : no zoom
@@ -147,6 +148,17 @@ function ObjectControls(camera, domElement, objectToMove) {
     */
     currentTouches = [];
 
+    
+    let currentSide = 0;
+  let currentSideTexture = textures[currentSide]
+  scene.background = currentSideTexture
+  console.log(domElement.width,domElement.height,currentSideTexture.image.width,currentSideTexture.image.height)
+  fitTexture(domElement.width,domElement.height,currentSideTexture.image.width, currentSideTexture.image.height)
+
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+    let impliedRotation = mesh.rotation.y
   /***************************** Private shared functions **********************/
 
   function zoomIn() {
@@ -179,6 +191,18 @@ function ObjectControls(camera, domElement, objectToMove) {
     mesh.rotation.x += Math.sign(deltaMove.y) * rotationSpeedTouchDevices;
   }
 
+  function fitTexture(targetWidth, targetHeight, imageWidth,imageHeight){
+    const targetAspect = targetWidth / targetHeight;
+    const imageAspect = imageWidth / imageHeight;
+    const factor = imageAspect / targetAspect;
+    // When factor larger than 1, that means texture 'wilder' than target。 
+    // we should scale texture height to target height and then 'map' the center  of texture to target， and vice versa.
+    scene.background.offset.x = factor > 1 ? (1 - 1 / factor) / 2 : 0;
+    scene.background.repeat.x = factor > 1 ? 1 / factor : 1;
+    scene.background.offset.y = factor > 1 ? 0 : (1 - factor) / 2;
+    scene.background.repeat.y = factor > 1 ? 1 : factor;
+  }
+
 
 
   function rotateHorizontal(deltaMove, mesh) {
@@ -190,10 +214,47 @@ function ObjectControls(camera, domElement, objectToMove) {
       }
       return;
     }
-    mesh.rotation.y += Math.sign(deltaMove.x) * rotationSpeed;
+
+      // if (proposedRotation % Math.PI * 2 != mesh.rotation.y % Math.PI * 2 ){
+    currentSide += 1 * -Math.sign(deltaMove.x)
+        currentSide = currentSide == sides ? 0 : currentSide
+      currentSide = currentSide < 0 ? sides -1 : currentSide
+    currentSideTexture = textures[currentSide]
+        scene.background = currentSideTexture
+    fitTexture(domElement.width, domElement.height, currentSideTexture.image.width, currentSideTexture.image.height)
 
 
+    mesh.rotation.y += Math.sign(deltaMove.x)  * Math.PI*2 / sides
+
+      // }
+    }
+
+    // let boundedImpliedRotation = findThreshold(thresholds, impliedRotation) || 0
+    // console.log('impliedRotation, boundedImpliedRotation,meshRotation',impliedRotation,boundedImpliedRotation.toFixed(6),mesh.rotation.y)
+
+    // if (mesh.rotation.y != boundedImpliedRotation.toFixed(6)){
+    //   console.log('rotating',mesh.rotation.y,boundedImpliedRotation.toFixed(6))
+    //   mesh.rotation.y = boundedImpliedRotation.toFixed(6)
+    // }
+
+  
+
+  function isRotationPermissable(impliedRotation, numberOfSides){
+    var rotation = (impliedRotation % Math.PI * 2).toFixed(2)
+    var bound = (Math.PI * 2 % numberOfSides).toFixed(2)
+    if (Math.abs(rotation % bound) <= .1) { // this used to be rotation % bound == 0 but the toFixed creates problems with rounding
+      console.log('true')
+      return true
+    }
+    // console.log('false')
+
+    return false;
   }
+
+
+ 
+
+
 
   function rotateHorizontalTouch(deltaMove, mesh) {
     if (mesh.length > 1) {
@@ -249,40 +310,43 @@ function ObjectControls(camera, domElement, objectToMove) {
   function mouseDown(e) {
     isDragging = true;
     flag = mouseFlags.MOUSEDOWN;
+    previousMousePosition = { x: e.offsetX, y: e.offsetY };
+
   }
 
+
+
   function mouseMove(e) {
+    console.log('moving')
     if (isDragging) {
       const deltaMove = {
         x: e.offsetX - previousMousePosition.x,
         y: e.offsetY - previousMousePosition.y
       };
 
-      previousMousePosition = { x: e.offsetX, y: e.offsetY };
 
-      if (horizontalRotationEnabled && deltaMove.x != 0)
+      // if (horizontalRotationEnabled && deltaMove.x != 0)
       // && (Math.abs(deltaMove.x) > Math.abs(deltaMove.y))) {
       // enabling this, the mesh will rotate only in one specific direction
       // for mouse movement
-      {
-        if (!isWithinMaxAngle(Math.sign(deltaMove.x) * rotationSpeed, 'y'))
-          return;
+      // {
+        // if (!isWithinMaxAngle(Math.sign(deltaMove.x) * rotationSpeed, 'y'))
+        //   return;
 
-        rotateHorizontal(deltaMove, mesh)
+
+        // TODO: Need Velocity: https://www.carvana.com/vehicle/1853746
+        if (Math.abs(deltaMove.x) >= 50) {
+          rotateHorizontal(deltaMove, mesh)
+          previousMousePosition = { x: e.offsetX, y: e.offsetY };
+
+        }
+
+ 
 
         flag = mouseFlags.MOUSEMOVE;
-      }
+      // }
 
-      if (verticalRotationEnabled && deltaMove.y != 0)
-      // &&(Math.abs(deltaMove.y) > Math.abs(deltaMove.x)) //
-      // enabling this, the mesh will rotate only in one specific direction for
-      // mouse movement
-      {
-        if (!isWithinMaxAngle(Math.sign(deltaMove.y) * rotationSpeed, 'x'))
-          return;
-        rotateVertical(deltaMove, mesh)
-        flag = mouseFlags.MOUSEMOVE;
-      }
+
     }
   }
 
