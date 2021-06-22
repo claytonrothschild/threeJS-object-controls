@@ -132,7 +132,7 @@ function ObjectControls(camera, domElement, objectToMove) {
     minDistance = 6,
     zoomSpeed = 0.5,
     rotationSpeed = 0.05,
-    rotationSpeedTouchDevices = 0.05,
+    rotationSpeedTouchDevices = 0.00005,
     isDragging = false,
     verticalRotationEnabled = false,
     horizontalRotationEnabled = true,
@@ -140,6 +140,7 @@ function ObjectControls(camera, domElement, objectToMove) {
     mouseFlags = { MOUSEDOWN: 0, MOUSEMOVE: 1 },
     previousMousePosition = { x: 0, y: 0 },
     prevZoomDiff = { X: null, Y: null },
+    sides = 4,
     /**
     * CurrentTouches
     * length 0 : no zoom
@@ -147,6 +148,10 @@ function ObjectControls(camera, domElement, objectToMove) {
     */
     currentTouches = [];
 
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+    let impliedRotation = mesh.rotation.y
   /***************************** Private shared functions **********************/
 
   function zoomIn() {
@@ -190,9 +195,87 @@ function ObjectControls(camera, domElement, objectToMove) {
       }
       return;
     }
-    mesh.rotation.y += Math.sign(deltaMove.x) * rotationSpeed;
+
+      
+    
+
+    impliedRotation += (Math.sign(deltaMove.x) * rotationSpeed);
+    impliedRotation = impliedRotation
+
+    if (isRotationPermissable(impliedRotation,sides)){
+      // if (proposedRotation % Math.PI * 2 != mesh.rotation.y % Math.PI * 2 ){
+        mesh.rotation.y += (Math.sign(deltaMove.x)) * rotateObject(impliedRotation, sides)
+      console.log('rotating', impliedRotation, mesh.rotation.y, mesh.rotation.y - impliedRotation)
 
 
+      // }
+    }
+
+    // let boundedImpliedRotation = findThreshold(thresholds, impliedRotation) || 0
+    // console.log('impliedRotation, boundedImpliedRotation,meshRotation',impliedRotation,boundedImpliedRotation.toFixed(6),mesh.rotation.y)
+
+    // if (mesh.rotation.y != boundedImpliedRotation.toFixed(6)){
+    //   console.log('rotating',mesh.rotation.y,boundedImpliedRotation.toFixed(6))
+    //   mesh.rotation.y = boundedImpliedRotation.toFixed(6)
+    // }
+
+  }
+
+  function degrees_to_radians(degrees) {
+    var pi = Math.PI;
+    return degrees * (pi / 180);
+    
+  }
+
+  function radians_to_degrees(radians) {
+    var pi = Math.PI;
+    return radians * (180 / pi);
+  }
+
+  function isRotationPermissable(impliedRotation, numberOfSides){
+    var rotation = (impliedRotation % Math.PI * 2).toFixed(2)
+    var bound = (Math.PI * 2 % numberOfSides).toFixed(2)
+    if (Math.abs(rotation % bound) <= .1) { // this used to be rotation % bound == 0 but the toFixed creates problems with rounding
+      console.log('true')
+      return true
+    }
+    // console.log('false')
+
+    return false;
+  }
+
+  function rotateObject(impliedRotation, numberOfSides){
+    var direction = Math.sign(impliedRotation)
+    var rotationAngle = (Math.PI *2)/numberOfSides
+    var rotation = direction * rotationAngle
+    console.log('will rotate', rotationAngle)
+    return rotationAngle
+  }
+
+  function findThreshold(array, target, low = 0, high = array.length - 1) {
+    target = Math.abs(target)
+    if (low > high) {
+      return array[high]
+    }
+    const mid = Math.floor((low + high) / 2)
+
+    if (target < array[mid]) {
+      return findThreshold(array, target, low, mid - 1)
+    } else if (target > array[mid]) {
+      return findThreshold(array, target, mid + 1, high)
+    } else {
+      return array[mid]
+    }
+  }
+
+  let thresholds = [-degrees_to_radians(270),-degrees_to_radians(180),-degrees_to_radians(90),0, degrees_to_radians(90), degrees_to_radians(180), degrees_to_radians(270)];
+
+  function calculateThresholds(numberOfSides){
+    for (let index = 0; index < numberOfSides; index++) {
+      let thresholdInterval = 360/numberOfSides;
+      thresholdToPush = thresholdInterval * index
+      thresholds.push(thresholdToPush)
+    }
   }
 
   function rotateHorizontalTouch(deltaMove, mesh) {
@@ -251,7 +334,10 @@ function ObjectControls(camera, domElement, objectToMove) {
     flag = mouseFlags.MOUSEDOWN;
   }
 
+
+
   function mouseMove(e) {
+    console.log('moving')
     if (isDragging) {
       const deltaMove = {
         x: e.offsetX - previousMousePosition.x,
@@ -260,29 +346,20 @@ function ObjectControls(camera, domElement, objectToMove) {
 
       previousMousePosition = { x: e.offsetX, y: e.offsetY };
 
-      if (horizontalRotationEnabled && deltaMove.x != 0)
+      // if (horizontalRotationEnabled && deltaMove.x != 0)
       // && (Math.abs(deltaMove.x) > Math.abs(deltaMove.y))) {
       // enabling this, the mesh will rotate only in one specific direction
       // for mouse movement
-      {
-        if (!isWithinMaxAngle(Math.sign(deltaMove.x) * rotationSpeed, 'y'))
-          return;
+      // {
+        // if (!isWithinMaxAngle(Math.sign(deltaMove.x) * rotationSpeed, 'y'))
+        //   return;
 
         rotateHorizontal(deltaMove, mesh)
 
         flag = mouseFlags.MOUSEMOVE;
-      }
+      // }
 
-      if (verticalRotationEnabled && deltaMove.y != 0)
-      // &&(Math.abs(deltaMove.y) > Math.abs(deltaMove.x)) //
-      // enabling this, the mesh will rotate only in one specific direction for
-      // mouse movement
-      {
-        if (!isWithinMaxAngle(Math.sign(deltaMove.y) * rotationSpeed, 'x'))
-          return;
-        rotateVertical(deltaMove, mesh)
-        flag = mouseFlags.MOUSEMOVE;
-      }
+
     }
   }
 

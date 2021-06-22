@@ -1,152 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
 
-<head>
-    <title>three.js webgl - ObjectControls example</title>
-    <meta charset="utf-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <meta name="description"
-          content="three.js webgl - ObjectControls example">
-    <meta name="keywords"
-          content="threejs, three, object, controls, 3D, object rotation">
-    <meta name="author"
-          content="Alberto Piras">
-    <meta name="contact"
-          content="a.piras.ict@gmail.com">
-    <style>
-        body {
-            background-color: #000;
-            margin: 0px;
-            overflow: hidden;
-        }
-
-        #info {
-            position: absolute;
-            top: 0px;
-            width: 100%;
-            color: #ffffff;
-            padding: 5px;
-            font-family: Monospace;
-            font-size: 13px;
-            text-align: center;
-        }
-
-        a {
-            color: #ff0080;
-            text-decoration: none;
-        }
-
-        a:hover {
-            color: #0080ff;
-        }
-    </style>
-</head>
-
 <body>
-    <a href="https://github.com/albertopiras/threeJS-object-controls"><img width="149" height="149"
-        src="https://github.blog/wp-content/uploads/2008/12/forkme_left_green_007200.png?resize=149%2C149"
-        class="attachment-full size-full" alt="Fork me on GitHub" data-recalc-dims="1"></a>
-    <div id="info">
-        <a href="http://threejs.org"
-           target="_blank">three.js</a> webgl - <a
-           href="https://github.com/Alberto-/threeJS-object-controls"
-           target="_blank">ObjectControls</a> example, with spotlight by <a
-           href="http://master-domain.com"
-           target="_blank">Master James</a><br />
-    </div>
 
     <script src="libs/three.min.js"></script>
-    <script src="libs/dat.gui.min.js"></script>
-    <script src="libs/Detector.js"></script>
 
     <script type="module">
-        import {ObjectControls} from './ObjectControls.js';
 
-        if (!Detector.webgl) Detector.addGetWebGLMessage();
+        import { ObjectControls } from './ObjectControls.js';
+        
+        const width = window.innerWidth / 2
 
         var renderer = new THREE.WebGLRenderer();
-
+        var controls;
         var camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 1000);
         var scene = new THREE.Scene();
 
-        var matFloor = new THREE.MeshPhongMaterial({ dithering: true });
-        var matBox = new THREE.MeshPhongMaterial({ color: 0xebe20d, dithering: true });
+        var spinImageMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
+        var spinModelMaterial = new THREE.MeshPhongMaterial({ color: 0x49ef4, transparent: true, opacity: 0});
 
-        var geoFloor = new THREE.BoxGeometry(1000, 1, 1000);
-        var geoBox = new THREE.BoxGeometry(2, 2, 2);
+        var spinModelGeometry = new THREE.SphereGeometry(width/3, 16, 16);
+        //new THREE.BoxGeometry(width/3, width/3, width/3);
 
-        var mshFloor = new THREE.Mesh(geoFloor, matFloor);
-        var mshBox = new THREE.Mesh(geoBox, matBox);
-        var mshBox2 = new THREE.Mesh(geoBox, matBox);
+        var spinImageGeometry = new THREE.BoxGeometry(width, width, width);
 
-        var ambient = new THREE.AmbientLight(0xffffff, 0.1);
+        var sampleHotspotGeometry = new THREE.SphereGeometry(10, 100, 100);
+        var sampleHotspotMaterial = new THREE.MeshToonMaterial({ color: 0x49ef4, transparent: true });
 
-        var spotLight = new THREE.SpotLight(0xffffff, 1);
-        var lightHelper;
 
-        var gui, guiElements, param = { color: '0xffffff' };
-        var controls;
+        var textureLoader = new THREE.TextureLoader();
+        var texture0 = textureLoader.load('front.png');
+        var texture1 = textureLoader.load('back.png');
+        var texture2 = textureLoader.load('sidel.png');
+        var texture3 = textureLoader.load('sider.png');
+
+        var cubeMaterials = [
+            new THREE.MeshBasicMaterial({ map: texture2, side: THREE.DoubleSide }),
+            new THREE.MeshBasicMaterial({ map: texture3, side: THREE.DoubleSide }), //done
+            new THREE.MeshBasicMaterial({ color: 0xaaa, vertexColors: true }),
+            new THREE.MeshBasicMaterial({ map: texture2, side: THREE.DoubleSide }),
+            new THREE.MeshBasicMaterial({ map: texture0, side: THREE.DoubleSide }), //done
+            new THREE.MeshBasicMaterial({ map: texture1, side: THREE.DoubleSide })
+        ];
+
+
+        var spinImage = new THREE.Mesh(spinImageGeometry, cubeMaterials);
+        var spinModel = new THREE.Mesh(spinModelGeometry, spinModelMaterial);
+        var hotspot = new THREE.Mesh(sampleHotspotGeometry, sampleHotspotMaterial);
+
+        var ambient = new THREE.AmbientLight(0xffffff);
+
+
 
         function init() {
 
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            camera.position.set(0, 0, 0);
+            camera.position.z = -spinImage.geometry.parameters.depth*2.3
 
-            renderer.gammaInput = true;
-            renderer.gammaOutput = true;
+            spinImage.position.set(0, 0, 0);
+            spinModel.position.set(0, 0, -spinImage.geometry.parameters.depth)
 
-            camera.position.set(0, 5, 50);
-            camera.position.z = 30;
-
-            spotLight.position.set(15, 40, 35);
-            spotLight.castShadow = true;
-            spotLight.angle = 0.18;
-            spotLight.penumbra = 0;
-            spotLight.decay = 2;
-            spotLight.distance = 200;
-            spotLight.intensity = 2;
-            spotLight.shadow.mapSize.width = 1024;
-            spotLight.shadow.mapSize.height = 1024;
-            spotLight.shadow.camera.near = 1;
-            spotLight.shadow.camera.far = 200;
-
-            lightHelper = new THREE.SpotLightHelper(spotLight);
-
-            matFloor.color.set(0x808080);
-
-            mshFloor.receiveShadow = true;
-            mshFloor.position.set(0, - 0.05, 0);
-
-            mshBox.castShadow = true;
-            mshBox2.castShadow = true;
-            mshBox.position.set(-3, 2.3, 3);
-            mshBox2.position.set(3, 2.3, 3);
-
-            camera.lookAt(mshBox.position);
+            camera.lookAt(spinImage.position);
 
             scene.add(camera);
-            scene.add(mshFloor);
-            scene.add(mshBox);
-            scene.add(mshBox2);
+            scene.add(spinImage);
+            scene.add(spinModel)
+            spinModel.add(hotspot);
+            hotspot.position.set(50, 0, -spinModel.geometry.parameters.radius);
             scene.add(ambient);
-            scene.add(spotLight);
-            scene.add(new THREE.AxisHelper(10));
-            scene.add(lightHelper);
 
             document.body.appendChild(renderer.domElement);
             renderer.setSize(window.innerWidth, window.innerHeight);
 
             /** instantiate ObjectControls**/
-            controls = new ObjectControls(camera, renderer.domElement, mshBox);
-            controls.setDistance(8, 200); // set min - max distance for zoom
-            controls.setZoomSpeed(0.5); // set zoom speed
-            controls.enableVerticalRotation();
-            controls.setMaxVerticalRotationAngle(Math.PI / 4, Math.PI / 4);
-            controls.setRotationSpeed(0.05);
+            controls = new ObjectControls(camera, renderer.domElement, spinImage);
+            controls = new ObjectControls(camera, renderer.domElement, spinModel);
 
             window.addEventListener('resize', onResize, false);
+        }
 
+        function checkPinVisibility() {
+            let hotspotPosition = spinModel.children[0].getWorldPosition();
+            let parentPosition = spinModel.getWorldPosition();
+            console.log(hotspotPosition.z, parentPosition.z)
+            if (hotspotPosition.z <= parentPosition.z || Math.abs(hotspotPosition.z) - Math.abs(parentPosition.z) == 0) {
+                spinModel.children[0].material.opacity = 1;
+
+            }
+            else
+                spinModel.children[0].material.opacity = 0;
         }
 
         function onResize() {
@@ -163,113 +105,16 @@
         }
 
         function render() {
-            lightHelper.update(); // required
+            checkPinVisibility()
+
             renderer.render(scene, camera);
         }
 
-        function clearGui() {
 
-            if (gui) gui.destroy();
-
-            gui = new dat.GUI();
-
-            gui.open();
-
-        }
-
-        function buildGui() {
-
-            clearGui();
-
-            addGui('light color', spotLight.color.getHex(), function (val) {
-
-                spotLight.color.setHex(val);
-
-            }, true);
-
-            addGui('intensity', spotLight.intensity, function (val) {
-
-                spotLight.intensity = val;
-
-            }, false, 0, 2);
-
-            addGui('distance', spotLight.distance, function (val) {
-
-                spotLight.distance = val;
-
-            }, false, 0, 200);
-
-            addGui('angle', spotLight.angle, function (val) {
-
-                spotLight.angle = val;
-
-            }, false, 0, Math.PI / 3);
-
-            addGui('penumbra', spotLight.penumbra, function (val) {
-
-                spotLight.penumbra = val;
-
-            }, false, 0, 1);
-
-            addGui('decay', spotLight.decay, function (val) {
-
-                spotLight.decay = val;
-
-            }, false, 1, 2);
-
-            var changeMeshConfig = {
-                useMesh1: function () {
-                    controls.setObjectToMove(mshBox);
-                },
-                useMesh2: function () {
-                    controls.setObjectToMove(mshBox2);
-                }
-            };
-            gui.add(changeMeshConfig, 'useMesh1');
-
-            gui.add(changeMeshConfig, 'useMesh2');
-
-        }
-
-        function addGui(name, value, callback, isColor, min, max) {
-
-            var node;
-            param[name] = value;
-
-            if (isColor) {
-
-                node = gui.addColor(param, name).onChange(function () {
-
-                    callback(param[name]);
-
-                });
-
-            } else if (typeof value == 'object') {
-
-                node = gui.add(param, name, value).onChange(function () {
-
-                    callback(param[name]);
-
-                });
-
-            } else {
-
-                node = gui.add(param, name, min, max).onChange(function () {
-
-                    callback(param[name]);
-
-                });
-
-            }
-
-            return node;
-
-        }
 
         init();
         animate();
 
-        buildGui();
     </script>
 </body>
 
